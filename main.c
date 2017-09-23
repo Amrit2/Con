@@ -33,7 +33,7 @@ unsigned char data;
 void setup(void);
 void UARTSend(unsigned char data);
 ISR (USART1_RX_vect);
-volatile enum comms COMM_STATE;	// Communications state machine
+volatile enum comms State;	// Communications state machine
 volatile uart rxData;
 volatile unsigned char dataStatus;
 
@@ -96,51 +96,51 @@ ISR (USART1_RX_vect)
     data = UDR1;
     
     // i'm thinking all this is built in due to the capitals, if not then -_-
-    switch(COMM_STATE)
+    switch(State)
     {
             // Start Byte
-        case COMM_START:
+        case startCom:
             if(data == START_BYTE)
             {
-                COMM_STATE = COMM_INS;	// Change state to INS
+                State = InsCom;	// Change state to INS
             }
             break;
             // Instruction Byte
-        case COMM_INS:
+        case InsCom:
             if(data >= checkTX)	// Change state to STOP
             {
                 rxData.INS = data;
-                COMM_STATE = COMM_STOP;
+                State = stopCom;
             }
             else if(data >= SET_PORTC)	// Change state to LSB
             {
                 rxData.INS = data;
-                COMM_STATE = COMM_LSB;
+                State = lsbCom;
             }
             else	// Invalid INS. Back to START
             {
-                COMM_STATE = COMM_START;
+                State = startCom;
             }
             break;
             // Data (LSB) Byte
-        case COMM_LSB:
+        case lsbCom:
             rxData.LSB = data;
-            COMM_STATE = COMM_MSB;
+            State = msbCom;
             break;
             // Data (MSB) Byte
-        case COMM_MSB:
+        case msbCom:
             rxData.MSB = data;
-            COMM_STATE = COMM_STOP;
+            State = stopCom;
             break;
             // Stop Byte
-        case COMM_STOP:
+        case stopCom:
             // If message correctly terminated, set data ready flag
             if(data == STOP_BYTE)
             {
                 dataStatus = 1;	// Flag: Data Ready
             }
             // No matter what, go back to START
-            COMM_STATE = COMM_START;
+            State = startCom;
             break;
     }
 	
@@ -157,7 +157,7 @@ void UARTSend(unsigned char data)
 
 
 // NOTE: structures below goes in UART.h <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-enum comms {COMM_START, COMM_STOP, COMM_INS, COMM_MSB, COMM_LSB};
+enum comms {startCom, stopCom, InsCom, msbCom, lsbCom};
 typedef struct
 {
     unsigned char INS;	// Instruction byte

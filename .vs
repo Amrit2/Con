@@ -15,26 +15,29 @@ namespace Assign_3a
 {
     public partial class Form1 : Form
     {
-        SerialPort ComPort = new SerialPort();  
+      private EventHandler ev;// no clue what this is for, might or might not need it
+      private AppBoard board = new AppBoard();
+
+        SerialPort ComPort = new SerialPort();
         public Form1()
         {
-          
+
             InitializeComponent();
             string[] ports = System.IO.Ports.SerialPort.GetPortNames();
             foreach (string port in ports)
             {
                 comPort.Items.Add(port);
             }
-            
+
             baudRate.SelectedIndex = 2; // DEFAULTING to 38400
             ledBulb2.On = false;
-            
+
         }
 
         private void Connect_Click(object sender, EventArgs e)
         {
 
-          
+
             //SerialPort ComPort = new SerialPort();          //Serial Comms name is ComPort, different to comPort (we might want to change this name)
             //ComPort.PortName = Convert.ToString(comPort.text);
             //comPort.text = ports[0];
@@ -42,7 +45,7 @@ namespace Assign_3a
             string Port_Name = comPort.SelectedItem.ToString();
 
             ComPort.PortName = Port_Name;
-            
+
 
             ComPort.DataBits = 8;           //Serial Port ComPort has 8 databits
             ComPort.Parity = 0;               //No Parity
@@ -50,15 +53,15 @@ namespace Assign_3a
             ComPort.ReadTimeout = 500;        //500ms timeout
             ComPort.WriteTimeout = 500;
 
-            
+
             //ComPort.Open();
-          
+
             if (ComPort.IsOpen == true)
             {
                 ledBulb2.On = true;
                 MessageBox.Show(String.Format("Connected"));
             }
-           
+
             else
             {
                 ledBulb2.On = false;
@@ -71,14 +74,14 @@ namespace Assign_3a
 
         }
 
-       
+
 
         private void Form1_Load(object sender, EventArgs e)
         {
 
         }
 
-  
+
         private void textBox1_TextChanged(object sender, EventArgs e)
         {
 
@@ -86,12 +89,12 @@ namespace Assign_3a
 
         private void baudRate_SelectedIndexChanged(object sender, EventArgs e)
         {
-           
+
         }
 
         private void comPort_SelectedIndexChanged(object sender, EventArgs e)
         {
-           
+
         }
 
         private void Tx_TextChanged(object sender, EventArgs e)
@@ -109,7 +112,7 @@ namespace Assign_3a
 
         }
 
-       
+
 
         private void Refresh_Click(object sender, EventArgs e)
         {
@@ -125,6 +128,28 @@ namespace Assign_3a
             ComPort.Open();
             ComPort.Write(str_led1);
             ComPort.Close();
+
+
+            //added PINA stuff below
+            board.ReadPINA();
+            ByteToLEDs(board.PINA);
+        }
+
+        // GUI: Turn on LEDs based on received byte
+        private void ByteToLEDs(byte receivedByte)
+        {
+            // BitMap/Array enables individual bit selection of received byte
+            BitArray receivedBitArray = new BitArray(new byte[] { receivedByte });
+
+            // Enable/Disable LEDs
+            ledPA0.On = receivedBitArray.Get(0);
+            ledPA1.On = receivedBitArray.Get(1);
+            ledPA2.On = receivedBitArray.Get(2);
+            ledPA3.On = receivedBitArray.Get(3);
+            ledPA4.On = receivedBitArray.Get(4);
+            ledPA5.On = receivedBitArray.Get(5);
+            ledPA6.On = receivedBitArray.Get(6);
+            ledPA7.On = receivedBitArray.Get(7);
         }
 
         private void PC0_CheckedChanged(object sender, EventArgs e)
@@ -174,7 +199,7 @@ namespace Assign_3a
 
         private void sevenSegment1_Load(object sender, EventArgs e)
         {
-        
+
         }
 
         private void sevenSegment2_Load(object sender, EventArgs e)
@@ -193,7 +218,141 @@ namespace Assign_3a
             T = 0x5A, U = 0x76, Y = 0x6E,
             Dash = 0x8, Equals = 0x48
         }
-      
-       
+
+
     }
 }
+///// make an AppBoard.cs file and include the below code/////<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+// should look something like the following
+using System;
+using System.Collections;
+using System.IO.Ports;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Security.Policy;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace AppBoardControl
+{
+    class AppBoard
+    {
+      private const byte TXCHECK = 0x00;
+      private const byte READ_PINA = 0x01;
+      private const byte START_BYTE = 0x53;
+      private const byte STOP_BYTE = 0xAA;
+      private const byte TX_VALID = 0x0F;
+
+      public byte PINA;
+
+      public void ReadPINA()
+       {
+           PINA = ReadUInt8(READ_PINA);
+          // Debug.WriteLine("AppBoard.ReadPINA() 0x" + PINA.ToString("X2")); don't need this I think
+       }
+       // Write to PORTC -- below might be important not sure
+        public byte WritePORTC(byte PORTC)
+               {
+                   byte returnValue = WriteUInt16(SET_PORTC, Convert.ToUInt16(PORTC));
+
+                   Debug.WriteLine("AppBoard.WritePORTC() 0x" + PORTC.ToString("X2") + " [0x" + returnValue.ToString("X2") + "]");
+
+                   return returnValue;
+               }
+        private byte ReadUInt8(byte instruction)
+               {
+                   byte[] message = {START_BYTE, instruction, STOP_BYTE};
+                   _serialPort.Write(message, 0, message.Length);
+
+                   return Convert.ToByte(_serialPort.ReadByte());
+               }
+               // Sends instruction + data to write, returns received byte
+        private byte WriteUInt16(byte instruction, UInt16 data)
+               {
+                   byte[] message = { START_BYTE, instruction, (byte)(data & 0xFF), (byte)(data >> 8), STOP_BYTE };
+                   _serialPort.Write(message, 0, message.Length);
+
+                   return Convert.ToByte(_serialPort.ReadByte());
+               }
+
+      /* might need to add the following if we are to shift everything to this file but I think lets ignore it for now?
+      private SerialPort _serialPort;
+      public bool isConnected;
+      public AppBoard()
+        {
+            isConnected = false;
+
+            // Serial Port - 8N1 with 500 mS timeout
+            _serialPort = new SerialPort();
+            _serialPort.DataBits = 8;
+            _serialPort.Parity = Parity.None;
+            _serialPort.StopBits = StopBits.One;
+            _serialPort.ReadTimeout = 500;
+            _serialPort.WriteTimeout = 500;
+        }
+        // Connect to Serial Port
+        public void Connect()
+        {
+            //if (_serialPort.BaudRate.ToString().Length == 0)
+            //{
+            //    throw new Exception("Baud rate not set.");
+            //}
+
+            //if (_serialPort.PortName.Length == 0)
+            //{
+            //    throw  new Exception("Port name not set.");
+            //}
+
+            //if (isConnected)
+            //{
+            //    throw new Exception("Serial Port is already connected.");
+            //}
+
+            _serialPort.Open();
+        }
+        // Disconnect from Serial Port
+        public void Disconnect()
+        {
+            //if (!isConnected)
+            //{
+            //    throw new Exception("Board isn't even connected.");
+            //}
+
+            _serialPort.Close();
+        }
+        // Return available COM Ports
+        public string[] GetCOMPorts()
+        {
+            // Sort portnames in ascending order before returning
+            ArrayList portList = new ArrayList(SerialPort.GetPortNames());
+            portList.Sort();
+            return (string[])portList.ToArray(typeof(string));
+        }
+        // Set COM Port
+        public void SetCOMPort(string comPort)
+        {
+            _serialPort.PortName = comPort;
+        }
+        // Set Baud Rate
+        public void SetBaudRate(int baudRate)
+        {
+            _serialPort.BaudRate = baudRate;
+        }
+        // Check communications with AppBoard
+        public bool CheckTx()
+        {
+            byte txResult = ReadUInt8(TXCHECK);
+
+            Debug.WriteLine("AppBoard.CheckTX() 0x" + txResult.ToString("X2"));
+
+            if (txResult == TX_VALID)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+
+      */

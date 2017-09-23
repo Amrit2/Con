@@ -45,7 +45,7 @@ int main(void)
 
     while (1) 
     {
-		if (dataStatus)
+	if (dataStatus)
         {
             dataStatus = 0;
             memcpy(&data, &rxData, sizeof(rxData));
@@ -68,7 +68,7 @@ int main(void)
                     break;
             }
         }
-		//UARTSend(PINA);
+	UARTSend(PINA);
 		
     }
 }
